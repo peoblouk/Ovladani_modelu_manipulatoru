@@ -1,5 +1,5 @@
 // ===============================
-// wifi_servo_server.c
+// wifi_servo_server.h
 // ===============================
 
 #ifndef WIFI_SERVO_SERVER
@@ -25,6 +25,10 @@ typedef struct {
 #include <inttypes.h>
 #include "esp_spiffs.h"
 #include "cJSON.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
 
 #include "nvs_flash.h"
 #include "nvs.h"

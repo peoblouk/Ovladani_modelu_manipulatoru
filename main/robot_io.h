@@ -23,6 +23,17 @@
 #define INTERP_STEPS 50
 #define INTERP_DELAY_MS 20
 
+#define L0  50.0f   // vertical offset from base to first joint
+#define L1  30.0f   // offset v radiální rovině (např. základní "reach" před prvním kloubem)
+#define L2  70.0f   // délka prvního článku (rameno)
+#define L3  60.0f   // délka druhého článku (loket)
+#define L4  20.0f   // délka zápěstí / posledního článku
+
+
+// Radians / Degrees conversion
+#define RAD2DEG(x) ((x) * 180.0f / M_PI)
+#define DEG2RAD(x) ((x) * M_PI / 180.0f)
+
 // ===============================
 // Servo Configuration (PWM output)
 // ===============================

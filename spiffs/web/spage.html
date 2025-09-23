@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <link rel="stylesheet" href="web/style.css">
   <link rel="icon" href="web/esp32_robotic_arm.ico" type="image/x-icon">
@@ -9,74 +8,65 @@
   <title>ESP32 Servo Control</title>
 
   <script>
-    // Set servo angle
+    let ws;
+
+    function initWS() {
+      ws = new WebSocket("ws://" + window.location.host + "/ws");
+
+      ws.onopen = () => {
+        console.log("WS connected");
+        document.querySelector(".status-dot").style.background = "limegreen";
+        document.querySelector(".status span").textContent = "Connected";
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        // realtime sensors
+        if (data.sensors) {
+          const container = document.getElementById('sensor-values');
+          container.innerHTML = '';
+          data.sensors.forEach(sensor => {
+            const div = document.createElement('div');
+            div.className = 'sensor-value';
+            div.innerHTML = `<strong>Sensor ${sensor.id}:</strong> Angle: ${sensor.angle.toFixed(1)}°`;
+            container.appendChild(div);
+          });
+        }
+
+        if (data.status) {
+          console.log("WS status:", data.status);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log("WS disconnected, retrying...");
+        document.querySelector(".status-dot").style.background = "red";
+        document.querySelector(".status span").textContent = "Disconnected";
+        setTimeout(initWS, 2000);
+      };
+    }
+
+    // set servo angle
     function setServo(servoId) {
       const angle = document.getElementById(`servo-${servoId}`).value;
-      if (angle < 0 || angle > 180) {
-        alert("Please enter a value between 0 and 180.");
-        return;
-      }
-
-      fetch('/servo', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          servo_id: servoId,
-          angle: parseInt(angle)
-        })
-      })
-        .then(response => response.text())
-        .then(data => console.log("Servo set:", data))
-        .catch(error => alert("Error: " + error));
-
+      ws.send(JSON.stringify({ servo: servoId, angle: parseInt(angle) }));
       document.getElementById(`servo-value-${servoId}`).textContent = angle + '°';
     }
-    // Move to XYZ
+
+    // move to XYZ
     function moveXYZ() {
       const x = parseFloat(document.getElementById('x').value);
       const y = parseFloat(document.getElementById('y').value);
       const z = parseFloat(document.getElementById('z').value);
-
       if (isNaN(x) || isNaN(y) || isNaN(z)) {
-        alert("Please enter valid numbers for X, Y, Z.");
+        alert("Please enter valid numbers");
         return;
       }
-
-      fetch('/move_xyz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ x: x, y: y, z: z })
-      })
-        .then(r => r.text())
-        .then(data => alert("Moving to X:" + x + " Y:" + y + " Z:" + z))
-        .catch(err => alert("Error: " + err));
+      ws.send(JSON.stringify({ cmd: "move_xyz", x: x, y: y, z: z }));
     }
 
-    // Read sensors
-    function readSensors() {
-      fetch('/sensors')
-        .then(response => response.json())
-        .then(data => {
-          const container = document.getElementById('sensor-values');
-          container.innerHTML = '';
-
-          data.sensors.forEach(sensor => {
-            const div = document.createElement('div');
-            div.className = 'sensor-value';
-            div.innerHTML = `
-                <strong>Sensor ${sensor.id}:</strong> 
-                Raw: ${sensor.raw}, 
-                Angle: ${sensor.angle.toFixed(1)}°
-                `;
-            container.appendChild(div);
-          });
-        })
-        .catch(error => console.error("Error reading sensors:", error));
-    }
-
-    // Upload file
+    // upload G-code file (zůstává REST)
     function uploadFile() {
       const fileInput = document.getElementById('fileInput');
       const file = fileInput.files[0];
@@ -97,31 +87,8 @@
         .catch(error => alert("Error uploading file: " + error));
     }
 
-    // Update status
-    function updateStatus() {
-      fetch("/status")
-        .then(response => response.json())
-        .then(data => {
-          const dot = document.querySelector(".status-dot");
-          const label = document.querySelector(".status span");
-          if (data.online) {
-            dot.style.background = "limegreen";
-            label.textContent = "Connected";
-          }
-        })
-        .catch(() => {
-          const dot = document.querySelector(".status-dot");
-          const label = document.querySelector(".status span");
-          dot.style.background = "red";
-          label.textContent = "Disconnected";
-        });
-    }
-
-    setInterval(readSensors, 2000); // Aktualizace každé 2 sekundy
-    setInterval(updateStatus, 2000);
-    window.onload = updateStatus;
+    window.onload = initWS;
   </script>
-
 </head>
 
 <body>
@@ -130,39 +97,35 @@
     <h2><a href="/" style="text-decoration: none; color: white;">ESP32 Robotic Arm</a></h2>
     <div class="status">
       <div class="status-dot"></div>
-      <span>Connected</span>
+      <span>Disconnected</span>
     </div>
   </div>
 
-  <!-- Servos Control -->
+  <!-- Move to XYZ -->
   <div class="main-container">
     <div class="container">
       <h1>Move to XYZ</h1>
-
       <div class="form-group">
         <label for="x">X [mm]:</label>
         <input type="number" id="x" step="1" value="100">
       </div>
-
       <div class="form-group">
         <label for="y">Y [mm]:</label>
         <input type="number" id="y" step="1" value="0">
       </div>
-
       <div class="form-group">
         <label for="z">Z [mm]:</label>
         <input type="number" id="z" step="1" value="50">
       </div>
-
       <button onclick="moveXYZ()">Move</button>
     </div>
 
-    <!-- Left Column - Servo Control -->
+    <!-- Servo Control -->
     <div class="column">
       <div class="container">
         <h1>Servo Control - joint space</h1>
         <div id="servo-controls">
-          <!-- Servo 0 -->
+          <!-- Servo sliders -->
           <div class="servo-control">
             <label>Servo GPIO_NUM_35:</label>
             <input type="range" min="0" max="180" value="90" id="servo-0"
@@ -171,7 +134,6 @@
             <button onclick="setServo(0)">Set</button>
           </div>
 
-          <!-- Servo 1 -->
           <div class="servo-control">
             <label>Servo GPIO_NUM_36:</label>
             <input type="range" min="0" max="180" value="90" id="servo-1"
@@ -180,7 +142,6 @@
             <button onclick="setServo(1)">Set</button>
           </div>
 
-          <!-- Servo 2 -->
           <div class="servo-control">
             <label>Servo GPIO_NUM_37:</label>
             <input type="range" min="0" max="180" value="90" id="servo-2"
@@ -189,7 +150,6 @@
             <button onclick="setServo(2)">Set</button>
           </div>
 
-          <!-- Servo 3 -->
           <div class="servo-control">
             <label>Servo GPIO_NUM_39:</label>
             <input type="range" min="0" max="180" value="90" id="servo-3"
@@ -198,7 +158,6 @@
             <button onclick="setServo(3)">Set</button>
           </div>
 
-          <!-- Servo 4 -->
           <div class="servo-control">
             <label>Servo GPIO_NUM_40:</label>
             <input type="range" min="0" max="180" value="90" id="servo-4"
@@ -207,7 +166,6 @@
             <button onclick="setServo(4)">Set</button>
           </div>
 
-          <!-- Servo 5 -->
           <div class="servo-control">
             <label>Servo GPIO_NUM_41:</label>
             <input type="range" min="0" max="180" value="90" id="servo-5"
@@ -219,40 +177,33 @@
       </div>
     </div>
 
-  <!-- Right Column - Sensors and Other Controls -->
-  <div class="column">
-    <!-- Sensor Values -->
-    <div class="container">
-      <h2>Sensor Values</h2>
-      <div id="sensor-values" class="sensor-container">
-        <p>Loading sensor data...</p>
+    <!-- Sensors -->
+    <div class="column">
+      <div class="container">
+        <h2>Sensor Values</h2>
+        <div id="sensor-values" class="sensor-container">
+          <p>Waiting for data...</p>
+        </div>
       </div>
-      <button onclick="readSensors()">Refresh Sensors</button>
+
+      <!-- Upload Section -->
+      <div class="upload-container">
+        <h2>Upload File</h2>
+        <input type="file" id="fileInput">
+        <button onclick="uploadFile()">Upload</button>
+      </div>
+
+      <!-- WiFi Configuration -->
+      <div class="container">
+        <h2>WiFi Configuration</h2>
+        <button onclick="window.location.href='/settings'">WiFi Configuration</button>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <p>ESP32 RoboticArm Petr Oblouk © 2025</p>
+      </div>
     </div>
-
-  <!-- Joystick -->
-  <!--<div id="joystick-container" style="width:200px; height:200px; background:#ccc; border-radius:50%; position:relative; margin:20px auto;">
-    <div id="joystick-knob" style="width:50px; height:50px; background:#0078d7; border-radius:50%; position:absolute; top:75px; left:75px;"></div>
-  </div> -->
-
-  <!-- Upload Section -->
-  <div class="upload-container">
-    <h2>Upload File</h2>
-    <input type="file" id="fileInput">
-    <button onclick="uploadFile()">Upload</button>
   </div>
-
-  <!-- WiFi Configuration -->
-  <div class="container">
-    <h2>WiFi Configuration</h2>
-    <button onclick="window.location.href='/settings'">WiFi Configuration</button>
-  </div>
-
-  <!-- Footer -->
-  <div class="footer">
-    <p>ESP32 RoboticArm Petr Oblouk © 2025</p>
-  </div>
-
 </body>
-
 </html>
