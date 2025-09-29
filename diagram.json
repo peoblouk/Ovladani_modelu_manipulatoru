@@ -4,12 +4,54 @@
   "editor": "wokwi",
   "parts": [
     { "type": "board-esp32-s3-devkitc-1", "id": "esp", "top": -0.18, "left": 23.77, "attrs": {} },
-    { "type": "wokwi-servo", "id": "servo1", "top": -117.2, "left": 230.4, "attrs": {} },
-    { "type": "wokwi-servo", "id": "servo2", "top": -30.8, "left": 230.4, "attrs": {} },
-    { "type": "wokwi-servo", "id": "servo3", "top": 55.6, "left": 230.4, "attrs": {} },
-    { "type": "wokwi-servo", "id": "servo4", "top": 151.6, "left": 230.4, "attrs": {} },
-    { "type": "wokwi-servo", "id": "servo5", "top": 238, "left": 230.4, "attrs": {} },
-    { "type": "wokwi-servo", "id": "servo6", "top": 324.4, "left": 230.4, "attrs": {} },
+    {
+      "type": "wokwi-servo",
+      "id": "servo1",
+      "top": -183.4,
+      "left": 97.8,
+      "rotate": 270,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo2",
+      "top": -183.4,
+      "left": 184.2,
+      "rotate": 270,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo3",
+      "top": -183.4,
+      "left": 270.6,
+      "rotate": 270,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo4",
+      "top": -183.4,
+      "left": 366.6,
+      "rotate": 270,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo5",
+      "top": -183.4,
+      "left": 472.2,
+      "rotate": 270,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-servo",
+      "id": "servo6",
+      "top": -183.4,
+      "left": 577.8,
+      "rotate": 270,
+      "attrs": {}
+    },
     { "type": "wokwi-potentiometer", "id": "pot1", "top": -97.3, "left": -163.4, "attrs": {} },
     { "type": "wokwi-potentiometer", "id": "pot2", "top": -10.9, "left": -163.4, "attrs": {} },
     { "type": "wokwi-potentiometer", "id": "pot3", "top": 75.5, "left": -163.4, "attrs": {} },
@@ -20,6 +62,8 @@
   "connections": [
     [ "esp:TX", "$serialMonitor:RX", "", [] ],
     [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "esp:TX0", "uart1:rx", "green", [ "h0" ] ],
+    [ "esp:RX0", "uart1:tx", "yellow", [ "h0" ] ],
     [ "esp:35", "servo1:PWM", "green", [] ],
     [ "esp:36", "servo2:PWM", "green", [] ],
     [ "esp:37", "servo3:PWM", "green", [] ],

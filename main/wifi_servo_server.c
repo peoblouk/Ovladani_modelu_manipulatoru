@@ -22,65 +22,6 @@ static SemaphoreHandle_t g_ws_lock;
 #define WS_SENSORS_PERIOD_MS 200
 
 // ===============================
-// WS CLIENT MANAGEMENT
-// ===============================
-static void ws_clients_add(int fd) {
-    xSemaphoreTake(g_ws_lock, portMAX_DELAY);
-    for (int i = 0; i < WS_MAX_CLIENTS; i++)
-        if (g_ws_clients[i] < 0) { g_ws_clients[i] = fd; break; }
-    xSemaphoreGive(g_ws_lock);
-}
-
-static void ws_clients_remove(int fd) {
-    xSemaphoreTake(g_ws_lock, portMAX_DELAY);
-    for (int i = 0; i < WS_MAX_CLIENTS; i++)
-        if (g_ws_clients[i] == fd) { g_ws_clients[i] = -1; break; }
-    xSemaphoreGive(g_ws_lock);
-}
-
-static void ws_send_to(int fd, const char *msg) {
-    if (!g_httpd) return;
-    httpd_ws_frame_t frame = {
-        .type = HTTPD_WS_TYPE_TEXT,
-        .payload = (uint8_t*)msg,
-        .len = strlen(msg)
-    };
-    httpd_ws_send_frame_async(g_httpd, fd, &frame);
-}
-
-static void ws_broadcast(const char *msg) {
-    xSemaphoreTake(g_ws_lock, portMAX_DELAY);
-    for (int i = 0; i < WS_MAX_CLIENTS; i++)
-        if (g_ws_clients[i] >= 0) ws_send_to(g_ws_clients[i], msg);
-    xSemaphoreGive(g_ws_lock);
-}
-
-// ===============================
-// G-CODE FILE HANDLER
-// ===============================
-static esp_err_t upload_post_handler(httpd_req_t *req) {
-    char filepath[50];
-    snprintf(filepath, sizeof(filepath), "/spiffs/gcode_file.gcode");
-
-    FILE *fd = fopen(filepath, "w");
-    if (!fd) { httpd_resp_send_500(req); return ESP_FAIL; }
-
-    char buf[256];
-    int received;
-    while ((received = httpd_req_recv(req, buf, sizeof(buf))) > 0) {
-        if (fwrite(buf, 1, received, fd) != received) {
-            fclose(fd);
-            httpd_resp_send_500(req);
-            return ESP_FAIL;
-        }
-    }
-    fclose(fd);
-    ESP_LOGI(TAG, "G-code saved: %s", filepath);
-    httpd_resp_sendstr(req, "File uploaded successfully!");
-    return ESP_OK;
-}
-
-// ===============================
 // G-CODE FILE HANDLER
 // ===============================
 static void print_gcode_to_console(const char *filename)
@@ -103,6 +44,29 @@ static void print_gcode_to_console(const char *filename)
     
     printf("=== END OF G-CODE ===\n\n");
     fclose(file);
+}
+
+static esp_err_t upload_post_handler(httpd_req_t *req) {
+    char filepath[50];
+    snprintf(filepath, sizeof(filepath), "/spiffs/data/gcode_file.gcode");
+
+    FILE *fd = fopen(filepath, "w");
+    if (!fd) { httpd_resp_send_500(req); return ESP_FAIL; }
+
+    char buf[256];
+    int received;
+    while ((received = httpd_req_recv(req, buf, sizeof(buf))) > 0) {
+        if (fwrite(buf, 1, received, fd) != received) {
+            fclose(fd);
+            httpd_resp_send_500(req);
+            return ESP_FAIL;
+        }
+    }
+    fclose(fd);
+    ESP_LOGI(TAG, "G-code saved: %s", filepath);
+    httpd_resp_sendstr(req, "File uploaded successfully!");
+    print_gcode_to_console("/spiffs/data/gcode_file.gcode");
+    return ESP_OK;
 }
 
 // ===============================
@@ -199,8 +163,39 @@ static esp_err_t wifi_config_handler(httpd_req_t *req) {
 // ===============================
 // WEBSOCKET
 // ===============================
+static void ws_clients_add(int fd) {
+    xSemaphoreTake(g_ws_lock, portMAX_DELAY);
+    for (int i = 0; i < WS_MAX_CLIENTS; i++)
+        if (g_ws_clients[i] < 0) { g_ws_clients[i] = fd; break; }
+    xSemaphoreGive(g_ws_lock);
+}
+
+static void ws_clients_remove(int fd) {
+    xSemaphoreTake(g_ws_lock, portMAX_DELAY);
+    for (int i = 0; i < WS_MAX_CLIENTS; i++)
+        if (g_ws_clients[i] == fd) { g_ws_clients[i] = -1; break; }
+    xSemaphoreGive(g_ws_lock);
+}
+
+static void ws_send_to(int fd, const char *msg) {
+    if (!g_httpd) return;
+    httpd_ws_frame_t frame = {
+        .type = HTTPD_WS_TYPE_TEXT,
+        .payload = (uint8_t*)msg,
+        .len = strlen(msg)
+    };
+    httpd_ws_send_frame_async(g_httpd, fd, &frame);
+}
+
+static void ws_broadcast(const char *msg) {
+    xSemaphoreTake(g_ws_lock, portMAX_DELAY);
+    for (int i = 0; i < WS_MAX_CLIENTS; i++)
+        if (g_ws_clients[i] >= 0) ws_send_to(g_ws_clients[i], msg);
+    xSemaphoreGive(g_ws_lock);
+}
+
 static esp_err_t ws_handler(httpd_req_t *req) {
-    // --- Handshake (připojení klienta) ---
+    // HANDSHAKE
     if (req->method == HTTP_GET) {
         int fd = httpd_req_to_sockfd(req);
         ws_clients_add(fd);
@@ -208,7 +203,7 @@ static esp_err_t ws_handler(httpd_req_t *req) {
         return ESP_OK;
     }
 
-    // --- Příjem WS zprávy ---
+    // RECEIVE FRAME
     httpd_ws_frame_t frame = {0};
     frame.type = HTTPD_WS_TYPE_TEXT;
 
@@ -221,10 +216,10 @@ static esp_err_t ws_handler(httpd_req_t *req) {
     httpd_ws_recv_frame(req, &frame, frame.len);
     frame.payload[frame.len] = '\0';
 
-    // --- Parsování JSON ---
+    // PARSE JSON
     cJSON *json = cJSON_Parse((char*)frame.payload);
     if (json) {
-        // 1) Servo control
+        // 1) SERVO CONTROL
         cJSON *servo = cJSON_GetObjectItem(json, "servo");
         cJSON *angle = cJSON_GetObjectItem(json, "angle");
         if (cJSON_IsNumber(servo) && cJSON_IsNumber(angle)) {
@@ -232,7 +227,7 @@ static esp_err_t ws_handler(httpd_req_t *req) {
             ws_send_to(httpd_req_to_sockfd(req), "{\"status\":\"ok\",\"cmd\":\"servo\"}");
         }
 
-        // 2) Sensors on-demand
+        // 2) SENSORS ON-DEMAND
         cJSON *cmd = cJSON_GetObjectItem(json, "cmd");
         if (cJSON_IsString(cmd) && strcmp(cmd->valuestring,"sensors")==0) {
             cJSON *root = cJSON_CreateObject();
@@ -249,7 +244,7 @@ static esp_err_t ws_handler(httpd_req_t *req) {
             cJSON_Delete(root);
         }
 
-        // 3) Move XYZ
+        // 3) MOVE XYZ
         if (cJSON_IsString(cmd) && strcmp(cmd->valuestring,"move_xyz")==0) {
             cJSON *jx = cJSON_GetObjectItem(json, "x");
             cJSON *jy = cJSON_GetObjectItem(json, "y");

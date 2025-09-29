@@ -14,7 +14,6 @@ servo_t servos[SERVO_COUNT] = {
     { .gpio_num = GPIO_NUM_40, .channel = LEDC_CHANNEL_4 },
     { .gpio_num = GPIO_NUM_41, .channel = LEDC_CHANNEL_5 },
     //{ .gpio_num = GPIO_NUM_42, .channel = LEDC_CHANNEL_6 }, (manipulator)
-
 };
 
 sensor_t sensors[SENSOR_COUNT] = {
@@ -32,7 +31,7 @@ sensor_t sensors[SENSOR_COUNT] = {
 // ===============================
 void servos_init(void)
 {
-   ledc_timer_config_t timer = {
+    ledc_timer_config_t timer = {
         .speed_mode       = LEDC_LOW_SPEED_MODE,
         .timer_num        = LEDC_TIMER_0,
         .duty_resolution  = LEDC_TIMER_14_BIT,
@@ -104,7 +103,7 @@ void inverse_kinematics(float x, float y, float z, float q_target[SERVO_COUNT])
     float q2_rad = -q2_raw;
 
     float phi = atan2f(D, r);
- 
+
     float sin_q2 = sinf(q2_raw);
     float k = b * sin_q2;
     float denom = a + b * cos_q2;
