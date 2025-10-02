@@ -1,8 +1,8 @@
 idf_component_register(
                     SRCS "main.c" "robot_io/robot_io.c" "uart_receive/uart_receive.c" "wifi_server/wifi_server.c"
-                    
+
                     INCLUDE_DIRS "." "robot_io" "uart_receive" "wifi_server"
-                    
+
                     EMBED_TXTFILES "certs/servercert.pem"
                                     "certs/prvtkey.pem"
 

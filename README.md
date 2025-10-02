@@ -1,12 +1,19 @@
+<!-- @format -->
+
 # Ovládání modelu manipulátoru pomocí ESP32-S3
 
 Tento projekt je ukázka řízení 6DOF robotického ramene pomocí **ESP32-S3**.  
 Implementuje ovládání servomotorů, čtení senzorů a základní inverzní kinematiku.  
 Komunikace probíhá přes **WebSocket/HTTP server** a **UART příkazy**.
 
+<p align="center">
+  <img src="img/Web_interface.jpg" alt="Maze GUI Preview" width="700"/>
+</p>
+
 ---
 
 ## 📂 Struktura projektu
+
 ```
 main/
 ├── main.c # Vstupní bod (app_main)
@@ -33,29 +40,29 @@ main/
 
 ### 🔹 Serva (PWM přes LEDC)
 
-| Servo ID | GPIO pin | LEDC Channel |
-|----------|----------|--------------|
-| 0        | 35       | 0            |
-| 1        | 36       | 1            |
-| 2        | 37       | 2            |
-| 3        | 39       | 3            |
-| 4        | 40       | 4            |
-| 5        | 41       | 5            |
-| (6)      | 42       | 6 *(rezervace pro manipulátor)* |
+| Servo ID | GPIO pin | LEDC Channel                    |
+| -------- | -------- | ------------------------------- |
+| 0        | 35       | 0                               |
+| 1        | 36       | 1                               |
+| 2        | 37       | 2                               |
+| 3        | 39       | 3                               |
+| 4        | 40       | 4                               |
+| 5        | 41       | 5                               |
+| (6)      | 42       | 6 _(rezervace pro manipulátor)_ |
 
 ---
 
 ### 🔹 Senzory (ADC)
 
-| Sensor ID | ADC Unit | ADC Channel | GPIO pin |
-|-----------|----------|-------------|----------|
-| 0         | 1        | 3           | IO4      |
-| 1         | 1        | 4           | IO5      |
-| 2         | 1        | 5           | IO6      |
-| 3         | 1        | 6           | IO7      |
-| 4         | 1        | 7           | IO12     |
-| 5         | 2        | 6           | IO17     |
-| (6)       | 2        | 7           | IO18 *(rezervace)* |
+| Sensor ID | ADC Unit | ADC Channel | GPIO pin           |
+| --------- | -------- | ----------- | ------------------ |
+| 0         | 1        | 3           | IO4                |
+| 1         | 1        | 4           | IO5                |
+| 2         | 1        | 5           | IO6                |
+| 3         | 1        | 6           | IO7                |
+| 4         | 1        | 7           | IO12               |
+| 5         | 2        | 6           | IO17               |
+| (6)       | 2        | 7           | IO18 _(rezervace)_ |
 
 ---
 
@@ -63,22 +70,22 @@ main/
 
 ### UART příkazy
 
-| Příkaz         | Popis                                      | Příklad         |
-|----------------|--------------------------------------------|-----------------|
-| `SERVO id ang` | Nastaví servo na zadaný úhel (0–180°)      | `SERVO 0 90`    |
-| `MOVE x y z`   | Pohne ramenem do souřadnic (IK triangulace)| `MOVE 10 20 30` |
-| `SENSORS`     | Vrátí úhly ze všech senzorů                | `SENSORS?`      |
+| Příkaz         | Popis                                       | Příklad         |
+| -------------- | ------------------------------------------- | --------------- |
+| `SERVO id ang` | Nastaví servo na zadaný úhel (0–180°)       | `SERVO 0 90`    |
+| `MOVE x y z`   | Pohne ramenem do souřadnic (IK triangulace) | `MOVE 10 20 30` |
+| `SENSORS`      | Vrátí úhly ze všech senzorů                 | `SENSORS?`      |
 
 ---
 
 ### Web server (HTTP/WS)
 
-- `/` – hlavní stránka (HTML)  
-- `/ws` – WebSocket API pro real-time komunikaci  
-- `/upload` – nahrání G-code souboru  
-- `/status` – JSON se stavem připojení  
-- `/settings` – nastavení Wi-Fi  
-- `/wifi_reset` – reset Wi-Fi konfigurace  
+- `/` – hlavní stránka (HTML)
+- `/ws` – WebSocket API pro real-time komunikaci
+- `/upload` – nahrání G-code souboru
+- `/status` – JSON se stavem připojení
+- `/settings` – nastavení Wi-Fi
+- `/wifi_reset` – reset Wi-Fi konfigurace
 
 ---
 
@@ -88,3 +95,4 @@ main/
 idf.py set-target esp32s3
 idf.py build
 idf.py -p COMx flash monitor
+```

@@ -18,4 +18,10 @@
 #define UART_BAUD_RATE     115200
 #define BUF_SIZE           256
 
+// ===============================
+// FUNCTION PROTOTYPES
+// ===============================
+void uart1_init(void);
+void uart_cmd_task(void *arg);
+
 #endif // UART_RECEIVE
