@@ -1,45 +1,105 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | -------- | -------- | -------- |
+# ESP32-S3 Robotic Arm Controller
 
-# HTTPS server
+Tento projekt je ukázka řízení 6DOF robotického ramene pomocí **ESP32-S3**.  
+Implementuje ovládání servomotorů, čtení senzorů a základní inverzní kinematiku.  
+Komunikace probíhá přes **WebSocket/HTTP server** a **UART příkazy**.
 
-This example creates an HTTPS server with SSL/TLS support using **ESP-TLS** that serves a simple HTML page when you visit its root URL.
+---
 
-For more information, refer to the [esp_https_server component documentation](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/protocols/esp_https_server.html).
-
-## Certificates
-
-You will need to approve a security exception in your browser. This is because of a self signed
-certificate; this will be always the case, unless you preload the CA root into your browser/system
-as trusted.
-
-You can generate a new certificate using the OpenSSL command line tool:
-
+## 📂 Struktura projektu
 ```
-openssl req -newkey rsa:2048 -nodes -keyout prvtkey.pem -x509 -days 3650 -out cacert.pem -subj "/CN=ESP32 HTTPS server example"
+main/
+├── main.c # Vstupní bod (app_main)
+├── robot_io/ # Serva a senzory
+│ ├── robot_io.c
+│ └── robot_io.h
+├── uart_receive/ # UART příkazy
+│ ├── uart_receive.c
+│ └── uart_receive.h
+├── wifi_server/ # HTTP + WebSocket server
+│ ├── wifi_server.c
+│ └── wifi_server.h
+└── CMakeLists.txt
 ```
 
-Expiry time and metadata fields can be adjusted in the invocation.
+---
 
-Please see the openssl man pages (man openssl-req) for more details.
+## 🔌 Hardware
 
-It is **strongly recommended** to not reuse the example certificate in your application;
-it is included only for demonstration.
+- **ESP32-S3 DevKitC**
+- 6× servo motor (GPIO 35–41)
+- senzory (ADC kanály)
+- volitelně USB-TTL převodník (CP2102/CH340) pro UART
 
-## Example Output
+### 🔹 Serva (PWM přes LEDC)
 
-```
-I (8596) example: Starting server
-I (8596) esp_https_server: Starting server
-I (8596) esp_https_server: Server listening on port 443
-I (8596) example: Registering URI handlers
-I (8606) esp_netif_handlers: example_connect: sta ip: 192.168.194.219, mask: 255.255.255.0, gw: 192.168.194.27
-I (8616) example_connect: Got IPv4 event: Interface "example_connect: sta" address: 192.168.194.219
-I (9596) example_connect: Got IPv6 event: Interface "example_connect: sta" address: fe80:0000:0000:0000:266f:28ff:fe80:2c74, type: ESP_IP6_ADDR_IS_LINK_LOCAL
-I (9596) example_connect: Connected to example_connect: sta
-W (9606) wifi:<ba-add>idx:0 (ifx:0, ee:6d:19:60:f6:0e), tid:0, ssn:2, winSize:64
-I (9616) example_connect: - IPv4 address: 192.168.194.219
-I (9616) example_connect: - IPv6 address: fe80:0000:0000:0000:266f:28ff:fe80:2c74, type: ESP_IP6_ADDR_IS_LINK_LOCAL
-W (14426) wifi:<ba-add>idx:1 (ifx:0, ee:6d:19:60:f6:0e), tid:4, ssn:0, winSize:64
-I (84896) esp_https_server: performing session handshake
-```
+| Servo ID | GPIO pin | LEDC Channel |
+|----------|----------|--------------|
+| 0        | 35       | 0            |
+| 1        | 36       | 1            |
+| 2        | 37       | 2            |
+| 3        | 39       | 3            |
+| 4        | 40       | 4            |
+| 5        | 41       | 5            |
+| (6)      | 42       | 6 *(rezervace pro manipulátor)* |
+
+---
+
+### 🔹 Senzory (ADC)
+
+| Sensor ID | ADC Unit | ADC Channel | GPIO pin |
+|-----------|----------|-------------|----------|
+| 0         | 1        | 3           | IO4      |
+| 1         | 1        | 4           | IO5      |
+| 2         | 1        | 5           | IO6      |
+| 3         | 1        | 6           | IO7      |
+| 4         | 1        | 7           | IO12     |
+| 5         | 2        | 6           | IO17     |
+| (6)       | 2        | 7           | IO18 *(rezervace)* |
+
+---
+
+## ⚙️ Funkce
+
+### UART příkazy
+
+| Příkaz         | Popis                                      | Příklad         |
+|----------------|--------------------------------------------|-----------------|
+| `SERVO id ang` | Nastaví servo na zadaný úhel (0–180°)      | `SERVO 0 90`    |
+| `MOVE x y z`   | Pohne ramenem do souřadnic (IK triangulace)| `MOVE 10 20 30` |
+| `SENSORS?`     | Vrátí úhly ze všech senzorů                | `SENSORS?`      |
+
+---
+
+### Web server (HTTP/WS)
+
+- `/` – hlavní stránka (HTML)  
+- `/ws` – WebSocket API pro real-time komunikaci  
+- `/upload` – nahrání G-code souboru  
+- `/status` – JSON se stavem připojení  
+- `/settings` – nastavení Wi-Fi  
+- `/wifi_reset` – reset Wi-Fi konfigurace  
+
+---
+
+## 🚀 Build a flash
+
+```bash
+idf.py set-target esp32s3
+idf.py build
+idf.py -p COMx flash monitor
+(nahraď COMx portem svého ESP32-S3)
+
+🛠️ TODO
+vylepšená inverzní kinematika (6DOF)
+
+interpolace dráhy (trajektorie místo point-to-point)
+
+webová vizualizace polohy ramen
+
+yaml
+Zkopírovat kód
+
+---
+
+Chceš, abych ti tam ještě dopsal i ukázku, jak posílat příkazy přes **Python script (pyserial)** pro 
