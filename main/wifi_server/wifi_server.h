@@ -26,6 +26,9 @@ typedef struct {
 #include "esp_spiffs.h"
 #include "cJSON.h"
 
+#include <dirent.h>
+#include <sys/stat.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -33,6 +36,7 @@ typedef struct {
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "robot_io.h"  // Robot IO (servos, sensors)
+
 
 // ===============================
 // FUNCTION PROTOTYPES

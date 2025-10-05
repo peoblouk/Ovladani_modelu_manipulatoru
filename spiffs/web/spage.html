@@ -68,28 +68,105 @@
         ws.send(JSON.stringify({ cmd: "move_xyz", x: x, y: y, z: z }));
       }
 
-      // Upload file
-      function uploadFile() {
+      // File upload
+      async function uploadFile() {
         const fileInput = document.getElementById("fileInput");
         const file = fileInput.files[0];
         if (!file) {
           alert("Please select a file first.");
           return;
         }
+        if (!/\.(txt|gcode)$/i.test(file.name)) {
+          alert("Only .txt or .gcode are allowed.");
+          return;
+        }
 
-        const formData = new FormData();
-        formData.append("file", file);
-
-        fetch("/upload", {
-          method: "POST",
-          body: formData,
-        })
-          .then((response) => response.text())
-          .then((data) => alert("File uploaded successfully"))
-          .catch((error) => alert("Error uploading file: " + error));
+        const res = await fetch("/file/" + encodeURIComponent(file.name), {
+          method: "PUT",
+          headers: { "Content-Type": "text/plain" },
+          body: await file.text(),
+        });
+        if (!res.ok) {
+          alert("Error uploading file");
+          return;
+        }
+        fileInput.value = "";
+        loadFiles();
       }
 
-      window.onload = initWS;
+      // Load file list
+      async function loadFiles() {
+        const list = document.getElementById("files-body");
+        if (!list) return;
+        list.innerHTML = `<tr><td colspan="4" style="padding:8px;">Loading…</td></tr>`;
+
+        try {
+          const res = await fetch("/files");
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const files = await res.json();
+
+          if (!files.length) {
+            list.innerHTML = `<tr><td colspan="4" style="padding:8px;">No files found</td></tr>`;
+            return;
+          }
+
+          list.innerHTML = "";
+          for (const f of files) {
+            const tr = document.createElement("tr");
+
+            tr.innerHTML = `
+              <td style="border-bottom:1px solid #eee; padding:6px 8px;">
+                <input class="file-chk" type="checkbox" value="${f.name}">
+              </td>
+              <td style="border-bottom:1px solid #eee; padding:6px 8px;">
+                <a href="/file/${encodeURIComponent(f.name)}" target="_blank">${f.name}</a>
+              </td>
+              <td style="border-bottom:1px solid #eee; padding:6px 8px; text-align:right;">${f.size}</td>
+              <td style="border-bottom:1px solid #eee; padding:6px 8px;">
+                <button data-del="${f.name}">Delete</button>
+              </td>
+            `;
+            list.appendChild(tr);
+          }
+
+          // Actions
+          document.querySelectorAll("button[data-del]").forEach((btn) => {
+            btn.onclick = async () => {
+              const name = btn.getAttribute("data-del");
+              if (!confirm(`Delete "${name}"?`)) return;
+              const r = await fetch("/file/" + encodeURIComponent(name), { method: "DELETE" });
+              if (!r.ok) {
+                alert("Delete failed");
+                return;
+              }
+              loadFiles();
+            };
+          });
+        } catch (e) {
+          list.innerHTML = `<tr><td colspan="4" style="padding:8px;">Error: ${e}</td></tr>`;
+        }
+      }
+
+      // Delete selected files
+      async function deleteSelected() {
+        const checks = Array.from(document.querySelectorAll(".file-chk:checked"));
+        if (!checks.length) {
+          alert("Nothing selected.");
+          return;
+        }
+        if (!confirm(`Delete ${checks.length} file(s)?`)) return;
+
+        for (const c of checks) {
+          await fetch("/file/" + encodeURIComponent(c.value), { method: "DELETE" });
+        }
+        loadFiles();
+      }
+
+      // Single onload hook (WS + files)
+      window.onload = function () {
+        initWS();
+        loadFiles();
+      };
     </script>
   </head>
 
@@ -224,11 +301,35 @@
           </div>
         </div>
 
-        <!-- Upload Section -->
-        <div class="upload-container">
-          <h2>Upload File</h2>
-          <input type="file" id="fileInput" />
-          <button onclick="uploadFile()">Upload</button>
+        <!-- ===== Upload + Files ===== -->
+        <div class="container">
+          <h2>Files (.txt, .gcode)</h2>
+
+          <!-- Upload controls -->
+          <div class="upload-container" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+            <input type="file" id="fileInput" accept=".txt,.gcode" />
+            <button onclick="uploadFile()">Upload</button>
+          </div>
+
+          <!-- Files table -->
+          <div style="overflow: auto; margin-top: 10px">
+            <table style="width: 100%; border-collapse: collapse">
+              <thead>
+                <tr>
+                  <th style="border-bottom: 1px solid #fff; padding: 6px 8px; width: 40px">☐</th>
+                  <th style="border-bottom: 1px solid #fff; padding: 6px 8px">Name</th>
+                  <th style="border-bottom: 1px solid #fff; padding: 6px 8px; width: 120px">Size [B]</th>
+                  <th style="border-bottom: 1px solid #fff; padding: 6px 8px; width: 120px">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="files-body">
+                <tr>
+                  <td colspan="4" style="padding: 8px">Loading…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <button onclick="deleteSelected()">Delete selected</button>
         </div>
 
         <!-- WiFi Configuration -->
