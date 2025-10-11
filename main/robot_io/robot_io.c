@@ -66,7 +66,7 @@ void servos_init(void)
 // ===============================
 void inverse_kinematics(float x, float y, float z, float q_target[SERVO_COUNT])
 {
-    float q0 = atan2f(y, x);
+    float q0 = atan2f(y, x); // base angle
 
     float R = sqrtf(x*x + y*y);
     float d = sqrtf(R*R + z*z);
@@ -74,12 +74,11 @@ void inverse_kinematics(float x, float y, float z, float q_target[SERVO_COUNT])
     float cos_q2 = (d*d - L1*L1 - L2*L2) / (2*L1*L2);
     if (cos_q2 > 1.0f) cos_q2 = 1.0f;
     if (cos_q2 < -1.0f) cos_q2 = -1.0f;
-    float q2 = acosf(cos_q2);
-
+    float q2 = acosf(cos_q2); // elbow angle
 
     float phi = atan2f(z, R);
     float psi = atan2f(L2*sin(q2), L1 + L2*cos_q2);
-    float q1 = phi - psi;
+    float q1 = phi - psi; // shoulder angle
 
     q_target[0] = RAD2DEG(q0);
     q_target[1] = RAD2DEG(q1);

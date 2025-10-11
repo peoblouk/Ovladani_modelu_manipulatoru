@@ -2,12 +2,15 @@
 
 # Ovládání modelu manipulátoru pomocí ESP32-S3
 
+<p align="right">
+  <img src="spiffs/web/esp32_robotic_arm.ico" alt="Web server interface" width="700"/>
+</p>
 Tento projekt je ukázka řízení 6DOF robotického ramene pomocí **ESP32-S3**.  
 Implementuje ovládání servomotorů, čtení senzorů a základní inverzní kinematiku.  
 Komunikace probíhá přes **WebSocket/HTTP server** a **UART příkazy**.
 
 <p align="center">
-  <img src="img/Web_interface.jpg" alt="Maze GUI Preview" width="700"/>
+  <img src="img/Web_interface.JPEG" alt="Web server interface" width="700"/>
 </p>
 
 ---
@@ -67,6 +70,12 @@ main/
 ---
 
 ## ⚙️ Funkce
+
+### Inverzní kinematika (triangulační)
+
+<p align="center">
+  <img src="img/IK_calculation.png" alt="Inverse kinematic" width="700"/>
+</p>
 
 ### UART příkazy
 

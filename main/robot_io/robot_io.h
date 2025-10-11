@@ -24,10 +24,10 @@
 #define INTERP_DELAY_MS 20
 
 #define L0  50.0f   // vertical offset from base to first joint
-#define L1  30.0f   // offset v radiální rovině (např. základní "reach" před prvním kloubem)
-#define L2  70.0f   // délka prvního článku (rameno)
-#define L3  60.0f   // délka druhého článku (loket)
-#define L4  20.0f   // délka zápěstí / posledního článku
+#define L1  30.0f   // offset in z-axis from base to first joint
+#define L2  70.0f   // length of first link (arm)
+#define L3  60.0f   // length of second link (elbow)
+#define L4  20.0f   // length of wrist / last link
 
 
 // Radians / Degrees conversion
