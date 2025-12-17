@@ -18,6 +18,9 @@
 #include "core_config.h"
 #include "rt_stats.h"
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
 #define CMD_BUF_SIZE 128   // max command line length
 #define FILE_STORAGE_PATH "/spiffs/data" // File storage path
 

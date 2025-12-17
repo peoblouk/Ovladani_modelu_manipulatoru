@@ -232,6 +232,24 @@ static int cmd_stats(int argc, char **argv) // stats
     return 0;
 }
 
+static int cmd_tasks(int argc, char **argv) // tasks
+{
+    (void)argc;
+    (void)argv;
+
+    const int n = uxTaskGetNumberOfTasks();
+    const int buf_len = n * 80; // rezerva na řádek/task
+    char *buf = malloc(buf_len);
+    if (!buf) return 0;
+
+    vTaskList(buf);
+    ESP_LOGI("TASKS", "\nName          State Prio Stack Num\n%s", buf);
+
+    free(buf);
+    return 0;
+}
+
+
 // ===============================
 // COMMAND REGISTRATION
 // ===============================
@@ -299,6 +317,14 @@ static void register_commands(void)
         .argtable = NULL,
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&stats_cmd));
+
+    const esp_console_cmd_t tasks_cmd = {
+        .command = "tasks",
+        .help    = "Print FreeRTOS task list",
+        .hint    = NULL,
+        .func    = &cmd_tasks,
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&tasks_cmd));
 }
 
 // ===============================
