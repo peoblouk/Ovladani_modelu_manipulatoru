@@ -10,7 +10,6 @@ static rt_stats_t g_servo_cmd_stats;
 static rt_stats_t g_move_cmd_stats;
 
 
-
 // ===============================
 // COMMAND HANDLERS 
 // ===============================
@@ -262,7 +261,7 @@ static int cmd_tasks(int argc, char **argv) // tasks
             default:         state_ch = '?'; break;
         }
 
-        BaseType_t core = xTaskGetAffinity(ts[i].xHandle);
+        BaseType_t core = xTaskGetCoreID(ts[i].xHandle);
         const char *core_str;
         if (core == 0 || core == 1) {
             core_str = (core == 0) ? "0" : "1";
