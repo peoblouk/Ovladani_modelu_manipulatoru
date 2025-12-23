@@ -1,13 +1,13 @@
 <!-- @format -->
 
-# Ovládání modelu manipulátoru pomocí ESP32-S3
+# RoboControl
 
 <p align="right">
   <img src="spiffs/web/robocontrol.ico" alt="Web server interface" width="50"/>
 </p>
-Tento projekt je ukázka řízení 6DOF robotického ramene pomocí **ESP32-S3**.  
+Tento projekt je ukázka řízení 6DOF robotického ramene pomocí <b>ESP32-S3</b>.  
 Implementuje ovládání servomotorů, čtení senzorů a základní inverzní kinematiku.  
-Komunikace probíhá přes **WebSocket/HTTP server** a **UART/konzolové příkazy**.
+Komunikace probíhá přes <b>WebSocket/HTTP server</b> a <b>UART/konzolové</b> příkazy.
 
 
 ---
@@ -113,6 +113,20 @@ main/
   - DELETE /file/<name> — odstraní soubor
   - POST /upload — ukládá nahraný G-code jako /spiffs/data/gcode_file.gcode (aktuální implementace)
 - upload a čtení jsou obsluhovány ve wifi_server.c (chunked read/write).
+
+## Připojení (SoftAP) + adresa webu
+
+ESP vytváří vlastní Wi-Fi (SoftAP):
+
+- **SSID:** `RoboControl`
+- **Heslo:** `Robo-Control123`
+- **IP adresa brány:** `192.168.8.1`
+
+Ovládání v prohlížeči:
+
+- **mDNS:** `http://robo-control.local/`
+- **Fallback (když .local nefunguje):** `http://192.168.8.1/`
+
 
 ### Web server (HTTP/WS)
 - `/` – hlavní stránka (HTML)
