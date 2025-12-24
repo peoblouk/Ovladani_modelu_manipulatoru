@@ -8,7 +8,7 @@
 #include "esp_log.h"
 #include "math.h"
 #include "driver/ledc.h"
-#include "driver/adc.h"
+#include "esp_adc/adc_oneshot.h" // #include "driver/adc.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"

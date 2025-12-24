@@ -5,6 +5,8 @@
 #include "robot_io.h"
 
 static const char *TAG = "robot_io";
+static adc_oneshot_unit_handle_t s_adc1 = NULL;
+static adc_oneshot_unit_handle_t s_adc2 = NULL;
 
 servo_t servos[SERVO_COUNT] = {
     { .gpio_num = GPIO_NUM_35,  .channel = LEDC_CHANNEL_0 },
@@ -119,24 +121,73 @@ void move_to_position(float q_target[SERVO_COUNT]) {
 // ===============================
 // INICIALIZATION OF SENSORS
 // ===============================
-void sensors_init(void) {
-    adc1_config_width(ADC_WIDTH_BIT_12);
+// void sensors_init(void) {
+//     adc1_config_width(ADC_WIDTH_BIT_12);
 
-    if (SENSOR_COUNT == SERVO_COUNT) {
-        for (int i = 0; i < SENSOR_COUNT; i++) {
-            if (sensors[i].unit == ADC_UNIT_1) {
-                adc1_config_channel_atten(sensors[i].channel, ADC_ATTEN_DB_12);
-            }
-            else if (sensors[i].unit == ADC_UNIT_2) {
-                adc2_config_channel_atten(sensors[i].channel, ADC_ATTEN_DB_12);
-            }
-        }
-        ESP_LOGI(TAG, "Sensors initialized");
+//     if (SENSOR_COUNT == SERVO_COUNT) {
+//         for (int i = 0; i < SENSOR_COUNT; i++) {
+//             if (sensors[i].unit == ADC_UNIT_1) {
+//                 adc1_config_channel_atten(sensors[i].channel, ADC_ATTEN_DB_12);
+//             }
+//             else if (sensors[i].unit == ADC_UNIT_2) {
+//                 adc2_config_channel_atten(sensors[i].channel, ADC_ATTEN_DB_12);
+//             }
+//         }
+//         ESP_LOGI(TAG, "Sensors initialized");
+//     }
+//     else
+//     {
+//         ESP_LOGE(TAG, "Servo and sensor count mismatch");
+//     }
+// }
+
+void sensors_init(void)
+{
+    bool need_adc1 = false;
+    bool need_adc2 = false;
+
+    for (int i = 0; i < SENSOR_COUNT; i++) { // check which ADC units are needed
+        if (sensors[i].unit == ADC_UNIT_1) need_adc1 = true;
+        else if (sensors[i].unit == ADC_UNIT_2) need_adc2 = true;
     }
-    else
-    {
-        ESP_LOGE(TAG, "Servo and sensor count mismatch");
+
+    if (need_adc1) {
+        adc_oneshot_unit_init_cfg_t cfg1 = {
+            .unit_id  = ADC_UNIT_1,
+            .clk_src  = ADC_DIGI_CLK_SRC_DEFAULT,
+            .ulp_mode = ADC_ULP_MODE_DISABLE,
+        };
+        ESP_ERROR_CHECK(adc_oneshot_new_unit(&cfg1, &s_adc1));
     }
+
+    if (need_adc2) {
+        adc_oneshot_unit_init_cfg_t cfg2 = {
+            .unit_id  = ADC_UNIT_2,
+            .clk_src  = ADC_DIGI_CLK_SRC_DEFAULT,
+            .ulp_mode = ADC_ULP_MODE_DISABLE,
+        };
+        ESP_ERROR_CHECK(adc_oneshot_new_unit(&cfg2, &s_adc2));
+    }
+
+    adc_oneshot_chan_cfg_t chan_cfg = {
+        .bitwidth = ADC_BITWIDTH_12,
+        .atten    = ADC_ATTEN_DB_12,   // 0–3.3 V
+    };
+
+    for (int i = 0; i < SENSOR_COUNT; i++) {
+        adc_oneshot_unit_handle_t unit =
+            (sensors[i].unit == ADC_UNIT_1) ? s_adc1 : s_adc2;
+
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(
+            unit,
+            sensors[i].channel,
+            &chan_cfg
+        ));
+    }
+
+    ESP_LOGI(TAG, "Sensors initialized (ADC1:%s, ADC2:%s)",
+             need_adc1 ? "yes" : "no",
+             need_adc2 ? "yes" : "no");
 }
 
 // ===============================
@@ -165,22 +216,47 @@ void servo_set_angle(int servo_id, float angle) {
 // ===============================
 // SENSOR READ RAW DATA (0–4095)
 // ===============================
-int sensor_read_raw(int id) {
-    if (id < 0 || id >= SENSOR_COUNT) return -1;
+// int sensor_read_raw(int id) {
+//     if (id < 0 || id >= SENSOR_COUNT) return -1;
 
-    if (sensors[id].unit == ADC_UNIT_1) {
-        return adc1_get_raw(sensors[id].channel);
+//     if (sensors[id].unit == ADC_UNIT_1) {
+//         return adc1_get_raw(sensors[id].channel);
+//     }
+//     else if (sensors[id].unit == ADC_UNIT_2) {
+//         int raw = 0;
+//         if (adc2_get_raw(sensors[id].channel, ADC_WIDTH_BIT_12, &raw) == ESP_OK) {
+//             return raw;
+//         } else {
+//             ESP_LOGW(TAG, "ADC2 read failed for sensor %d", id);
+//             return -1;
+//         }
+//     }
+//     return -1;
+// }
+
+int sensor_read_raw(int id)
+{
+    if (id < 0 || id >= SENSOR_COUNT) {
+        return -1;
     }
-    else if (sensors[id].unit == ADC_UNIT_2) {
-        int raw = 0;
-        if (adc2_get_raw(sensors[id].channel, ADC_WIDTH_BIT_12, &raw) == ESP_OK) {
-            return raw;
-        } else {
-            ESP_LOGW(TAG, "ADC2 read failed for sensor %d", id);
-            return -1;
-        }
+
+    adc_oneshot_unit_handle_t unit =
+        (sensors[id].unit == ADC_UNIT_1) ? s_adc1 : s_adc2;
+
+    if (!unit) {
+        ESP_LOGW(TAG, "ADC unit not init for sensor %d", id);
+        return -1;
     }
-    return -1;
+
+    int raw = 0;
+    esp_err_t err = adc_oneshot_read(unit, sensors[id].channel, &raw);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "ADC read failed: id=%d unit=%d ch=%d err=%s",
+                 id, sensors[id].unit, sensors[id].channel,
+                 esp_err_to_name(err));
+        return -1;
+    }
+    return raw;
 }
 
 // ===============================
