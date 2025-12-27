@@ -1,9 +1,9 @@
 [wokwi]
 version = 1
 firmware = 'build/flasher_args.json'
-elf = 'build/https_server.elf'
+elf = 'build/robocontrol.elf'
 
-#firmware = 'build/https_server.bin'
+#firmware = 'build/robocontrol.bin'
 board = 'ESP32-S3'
 
 [connections]
