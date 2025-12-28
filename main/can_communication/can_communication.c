@@ -1,3 +1,7 @@
+// ===============================
+// can_communication.c
+// ===============================
+
 #include "can_communication.h"
 
 void can_init(void) {
@@ -13,5 +17,5 @@ void can_receive_task(void *arg) {
 
 void can_start(void) {
     can_init();
-    xTaskCreatePinnedToCore(can_receive_task, "can_rx", 4096, NULL, 6, NULL, CORE_COMM);       // jádro pro komunikaci
+    xTaskCreatePinnedToCore(can_receive_task, "can_rx", 4096, NULL, 6, NULL, CORE_COMM);
 }

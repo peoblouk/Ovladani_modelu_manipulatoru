@@ -9,7 +9,6 @@ static rt_stats_t g_sensors_cmd_stats;
 static rt_stats_t g_servo_cmd_stats;
 static rt_stats_t g_move_cmd_stats;
 
-
 // ===============================
 // COMMAND HANDLERS 
 // ===============================
@@ -80,6 +79,42 @@ static int cmd_move(int argc, char **argv) // move <x> <y> <z>
     return 0;
 }
 
+static int cmd_gcode(int argc, char **argv) // gcode <subcommand>
+{
+    if (argc < 2) {
+        printf("Usage:\n");
+        printf("  gcode reset\n");
+        printf("  gcode stop\n");
+        printf("  gcode run <file.gcode>\n");
+        printf("  gcode line <G1 ...>\n");
+        return 0;
+    }
+
+    if (strcmp(argv[1],"reset")==0) { gcode_reset(); return 0; }
+    if (strcmp(argv[1],"stop")==0)  { gcode_stop();  return 0; }
+
+    if (strcmp(argv[1],"run")==0 && argc >= 3) {
+        bool ok = gcode_run_file(argv[2]);
+        printf(ok ? "OK\n" : "ERR\n");
+        return 0;
+    }
+
+    if (strcmp(argv[1],"line")==0 && argc >= 3) {
+        char line[200] = {0};
+        for (int i = 2; i < argc; i++) {
+            if (strlen(line) + strlen(argv[i]) + 2 >= sizeof(line)) break;
+            if (i > 2) strcat(line, " ");
+            strcat(line, argv[i]);
+        }
+        bool ok = gcode_push_line(line);
+        printf(ok ? "OK\n" : "ERR\n");
+        return 0;
+    }
+
+    printf("Unknown gcode subcommand\n");
+    return 0;
+}
+
 static int cmd_sensors(int argc, char **argv) // sensors
 {
     (void)argc;
@@ -110,26 +145,6 @@ static int cmd_sensors(int argc, char **argv) // sensors
     return 0;
 }
 
-static int cmd_test(int argc, char **argv) // test
-{
-    (void)argc;
-    (void)argv;
-
-    int ok = 1;
-
-    ok &= robot_cmd_move_xyz(100.0,   0.0,  80.0);
-    ok &= robot_cmd_move_xyz( 80.0,  80.0,  80.0);
-    ok &= robot_cmd_move_xyz( 80.0, -80.0,  80.0);
-    ok &= robot_cmd_move_xyz(100.0,   0.0,  80.0);
-
-    if (ok) {
-        printf("OK: Test sequence queued (4 positions)\n");
-    } else {
-        printf("ERR: Failed to queue all test moves\n");
-    }
-    return 0;
-}
-
 static int cmd_print_file(int argc, char **argv) // print <filename>
 {
     if (argc != 2) {
@@ -141,8 +156,6 @@ static int cmd_print_file(int argc, char **argv) // print <filename>
     const char *filename_arg = argv[1];
     char full_path[128];
 
-    // Pokud uživatel zadal cestu začínající "/", použijeme ji tak jak je.
-    // Pokud ne, přidáme před to "/spiffs/data/"
     if (filename_arg[0] == '/') {
         snprintf(full_path, sizeof(full_path), "%s", filename_arg);
     } else {
@@ -160,7 +173,7 @@ static int cmd_print_file(int argc, char **argv) // print <filename>
     int line_number = 1;
 
     while (fgets(line, sizeof(line), file)) {
-        line[strcspn(line, "\r\n")] = 0; // Odstranění \n pro hezčí výpis
+        line[strcspn(line, "\r\n")] = 0;
         printf("%4d: %s\n", line_number, line);
         line_number++;
     }
@@ -231,7 +244,7 @@ static int cmd_stats(int argc, char **argv) // stats
     return 0;
 }
 
-
+/////
 static int cmd_tasks(int argc, char **argv) // tasks
 {
     (void)argc;
@@ -283,6 +296,26 @@ static int cmd_tasks(int argc, char **argv) // tasks
     return 0;
 }
 
+static int cmd_test(int argc, char **argv) // test
+{
+    (void)argc;
+    (void)argv;
+
+    int ok = 1;
+
+    ok &= robot_cmd_move_xyz(100.0,   0.0,  80.0);
+    ok &= robot_cmd_move_xyz( 80.0,  80.0,  80.0);
+    ok &= robot_cmd_move_xyz( 80.0, -80.0,  80.0);
+    ok &= robot_cmd_move_xyz(100.0,   0.0,  80.0);
+
+    if (ok) {
+        printf("OK: Test sequence queued (4 positions)\n");
+    } else {
+        printf("ERR: Failed to queue all test moves\n");
+    }
+    return 0;
+}
+/////
 
 // ===============================
 // COMMAND REGISTRATION
@@ -359,6 +392,15 @@ static void register_commands(void)
         .func    = &cmd_tasks,
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&tasks_cmd));
+
+    const esp_console_cmd_t gcode_cmd = {
+    .command  = "gcode",
+    .help     = "G-code: gcode run <file>, gcode line <...>, gcode stop, gcode reset",
+    .hint     = NULL,
+    .func     = &cmd_gcode,
+    .argtable = NULL,
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&gcode_cmd));
 }
 
 // ===============================
@@ -372,7 +414,7 @@ static void console_task(void *arg)
     setvbuf(stdout, NULL, _IONBF, 0);
 
     esp_console_config_t console_cfg = {
-        .max_cmdline_args   = 5,
+        .max_cmdline_args   = 16,
         .max_cmdline_length = CMD_BUF_SIZE,
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
         .hint_color = 0,
@@ -384,7 +426,6 @@ static void console_task(void *arg)
     register_commands();
 
     ESP_LOGI(TAG, "console_task running on core %d", xPortGetCoreID());
-    ESP_LOGI(TAG, "Console ready. Type 'help' to list commands.");
 
     char buf[CMD_BUF_SIZE];
     int  pos = 0;

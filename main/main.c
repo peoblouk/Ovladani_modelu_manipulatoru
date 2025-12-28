@@ -8,13 +8,10 @@
 #include "esp_spiffs.h"
 #include "wifi_server.h"    // Wi-Fi and Servo Control Server
 #include "robot_io.h"       // Robotic Arm Kinematics
-#include "core_config.h"    // Core Configuration
+#include "config.h"         // Configuration
 #include "cmd_control.h"    // Command Control
 #include "rt_stats.h"       // Real-time statistics
 
-//! UART for receiving commands from another ESP32
-//#include "uart_receive.h" // UART Receive
-//void uart_cmd_task(void *arg);
 
 static void init_spiffs(void); // Initialize SPIFFS (File System)
 
@@ -35,10 +32,6 @@ void app_main(void)
     robot_control_start();     // Start robot control task
 
     cmd_control_start();       // Start command control task
-
-    //! UART for receiving commands from another ESP32
-    //uart1_init(); // Initialize UART1
-    //xTaskCreate(uart_cmd_task, "uart_cmd_task", 4096, NULL, 5, NULL);
 }
 
 // ===============================

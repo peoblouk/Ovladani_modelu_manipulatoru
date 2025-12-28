@@ -1,10 +1,10 @@
 // ===============================
 // rt_stats.h
-// Simple runtime statistics helpers
 // ===============================
 
 #ifndef RT_STATS_H
 #define RT_STATS_H
+#include "config.h"  // Configuration
 
 #include <stdint.h>
 #include <math.h>
@@ -19,17 +19,15 @@ typedef struct {
     double   m2;   // sum of squares of differences from the mean
 } rt_stats_t;
 
-// Baisic statistics functions
+// ===============================
+// FUNCTION PROTOTYPES
+// ===============================
 void   rt_stats_reset(rt_stats_t *s);
 void   rt_stats_add_sample(rt_stats_t *s, int64_t x);
 double rt_stats_stddev(const rt_stats_t *s);
 void   rt_stats_print(const char *tag, const rt_stats_t *s);
 
-// ===============================
-// Misc. real-time helpers
-// ===============================
-
-// Vrátí čas v µs
+// return time now in microseconds
 int64_t rt_now_us(void);
 
 //! Start measuring a time span:

@@ -247,6 +247,37 @@ static esp_err_t ws_handler(httpd_req_t *req) {
             }
         }
 
+        if (cJSON_IsString(cmd) && strcmp(cmd->valuestring,"gcode_line") == 0) {
+            cJSON *jl = cJSON_GetObjectItem(json, "line");
+            int fd = httpd_req_to_sockfd(req);
+
+            if (cJSON_IsString(jl)) {
+                bool ok = gcode_push_line(jl->valuestring);
+                ws_send_to(fd, ok ? "{\"status\":\"ok\",\"cmd\":\"gcode_line\"}"
+                                : "{\"status\":\"err\",\"cmd\":\"gcode_line\"}");
+            }
+        }
+
+        // GCODE: run file from /spiffs/data
+        if (cJSON_IsString(cmd) && strcmp(cmd->valuestring,"gcode_run") == 0) {
+            cJSON *jf = cJSON_GetObjectItem(json, "file");
+            int fd = httpd_req_to_sockfd(req);
+
+            if (cJSON_IsString(jf)) {
+                // MVP: spustí to blokující – lepší je task (viz níž)
+                bool ok = gcode_run_file(jf->valuestring);
+                ws_send_to(fd, ok ? "{\"status\":\"ok\",\"cmd\":\"gcode_run\"}"
+                                : "{\"status\":\"err\",\"cmd\":\"gcode_run\"}");
+            }
+        }
+
+        // GCODE: stop
+        if (cJSON_IsString(cmd) && strcmp(cmd->valuestring,"gcode_stop") == 0) {
+            int fd = httpd_req_to_sockfd(req);
+            gcode_stop();
+            ws_send_to(fd, "{\"status\":\"ok\",\"cmd\":\"gcode_stop\"}");
+        }
+
         cJSON_Delete(json);
     }
 

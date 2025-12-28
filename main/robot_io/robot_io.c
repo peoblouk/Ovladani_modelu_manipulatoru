@@ -31,6 +31,12 @@ sensor_t sensors[SENSOR_COUNT] = {
 // Queue for robot commands
 static QueueHandle_t s_robot_queue = NULL;
 
+// Trajectory segment buffer
+static traj_seg_t s_seg_buf[SEG_BUF_LEN];
+static int s_seg_w = 0, s_seg_r = 0;
+static traj_seg_t s_cur = {0};
+static float s_last_q[SERVO_COUNT] = {0};
+
 // ===============================
 // INICIALIZATION OF SERVOS
 // ===============================
@@ -231,36 +237,116 @@ float sensor_read_angle(int id) {
 }
 
 // ===============================
-// ROBOT CONTROL TASK
+// ROBOT SEGMENT BUFFER MANAGEMENT
+// ===============================
+static bool seg_full(void)  { return ((s_seg_w + 1) % SEG_BUF_LEN) == s_seg_r; }
+static bool seg_empty(void) { return s_seg_w == s_seg_r; }
+
+static void seg_flush(void) {
+    s_seg_w = s_seg_r = 0;
+    s_cur.active = false;
+}
+
+static bool seg_push(const traj_seg_t *s) {
+    if (seg_full()) return false;
+    s_seg_buf[s_seg_w] = *s;
+    s_seg_w = (s_seg_w + 1) % SEG_BUF_LEN;
+    return true;
+}
+
+static bool seg_pop(traj_seg_t *s) {
+    if (seg_empty()) return false;
+    *s = s_seg_buf[s_seg_r];
+    s_seg_r = (s_seg_r + 1) % SEG_BUF_LEN;
+    return true;
+}
+
+
+
+static float smoothstep(float s) { // 0..1
+    if (s < 0) s = 0;
+    if (s > 1) s = 1;
+    return 3.0f*s*s - 2.0f*s*s*s;
+}
+
+static void apply_joints(const float q[SERVO_COUNT]) {
+    for (int i = 0; i < SERVO_COUNT; i++) servo_set_angle(i, q[i]);
+}
+
+// ===============================
+// ROBOT CONTROL TASK   
 // ===============================
 static void robot_control_task(void *arg)
 {
-    ESP_LOGI(TAG, "robot_control_task running on core %d", xPortGetCoreID());
+    for (int i = 0; i < SERVO_COUNT; i++) s_last_q[i] = sensor_read_angle(i); // inicialization of last_q
 
     robot_cmd_t cmd;
 
-    while (1) {
-        // wait for command
-        if (xQueueReceive(s_robot_queue, &cmd, portMAX_DELAY) == pdTRUE) {
+    for (;;) {
+        if (xQueueReceive(s_robot_queue, &cmd, pdMS_TO_TICKS(EXEC_DT_MS)) == pdTRUE) {
 
-            switch (cmd.type) {
-                case ROBOT_CMD_MOVE_JOINTS:
-                    ESP_LOGI(TAG, "ROBOT_CMD_MOVE_JOINTS");
-                    move_to_position(cmd.q_target);
-                    break;
-
-                case ROBOT_CMD_MOVE_XYZ:
-                    ESP_LOGI(TAG, "ROBOT_CMD_MOVE_XYZ to (%.1f, %.1f, %.1f)",
-                              cmd.x, cmd.y, cmd.z);
-                    // calculate IK -> target angles
-                    inverse_kinematics(cmd.x, cmd.y, cmd.z, cmd.q_target);
-                    move_to_position(cmd.q_target);
-                    break;
-
-                default:
-                    ESP_LOGW(TAG, "Unknown robot command: %d", cmd.type);
-                    break;
+            if (cmd.type == ROBOT_CMD_QUEUE_FLUSH) {
+                seg_flush();
+                continue;
             }
+
+            if (seg_full()) { // full planner buffer
+                ESP_LOGW(TAG, "Planner full, dropping command");
+                continue;
+            }
+
+            traj_seg_t s = {0};
+
+            // start = last_q
+            for (int i = 0; i < SERVO_COUNT; i++) s.q0[i] = s_last_q[i];
+
+            if (cmd.type == ROBOT_CMD_MOVE_JOINTS) {
+                // default time: 1.0s (same as before 50*20ms)
+                for (int i = 0; i < SERVO_COUNT; i++) s.q1[i] = cmd.q_target[i];
+                s.T = 1.0f;
+            }
+            else if (cmd.type == ROBOT_CMD_MOVE_XYZ) {
+                inverse_kinematics(cmd.x, cmd.y, cmd.z, s.q1);
+                s.T = 1.0f;
+            }
+            else if (cmd.type == ROBOT_CMD_MOVE_JOINTS_T) {
+                for (int i = 0; i < SERVO_COUNT; i++) s.q1[i] = cmd.q_target[i];
+                s.T = cmd.duration_s;
+            }
+            else {
+                ESP_LOGW(TAG, "Unknown robot command: %d", cmd.type);
+                continue;
+            }
+
+            if (s.T < MIN_SEG_T) s.T = MIN_SEG_T;
+            s.t = 0;
+            s.active = false;
+
+            seg_push(&s);
+        }
+
+        // 2) tick executor
+        if (!s_cur.active) {
+            if (!seg_pop(&s_cur)) continue;
+            s_cur.t = 0;
+            s_cur.active = true;
+        }
+
+        s_cur.t += EXEC_DT_S;
+        float s = (s_cur.T > 1e-6f) ? (s_cur.t / s_cur.T) : 1.0f;
+        float a = smoothstep(s);
+
+        float q[SERVO_COUNT];
+        for (int i = 0; i < SERVO_COUNT; i++) {
+            q[i] = s_cur.q0[i] + (s_cur.q1[i] - s_cur.q0[i]) * a;
+        }
+
+        apply_joints(q);
+
+        if (s >= 1.0f) {
+            // segment ready -> update last_q
+            for (int i = 0; i < SERVO_COUNT; i++) s_last_q[i] = s_cur.q1[i];
+            s_cur.active = false;
         }
     }
 }
@@ -314,4 +400,33 @@ bool robot_cmd_move_xyz(float x, float y, float z)
     cmd.z = z;
 
     return xQueueSend(s_robot_queue, &cmd, 0) == pdTRUE;
+}
+
+// ===============================
+// Send command - MOVE_JOINTS_T
+// ===============================
+bool robot_cmd_move_joints_t(const float q_target[SERVO_COUNT], float duration_s, TickType_t timeout)
+{
+    if (s_robot_queue == NULL) return false;
+
+    robot_cmd_t cmd = {0};
+    cmd.type = ROBOT_CMD_MOVE_JOINTS_T;
+    for (int i = 0; i < SERVO_COUNT; i++) {
+        cmd.q_target[i] = q_target[i];
+    }
+    cmd.duration_s = duration_s;
+
+    return xQueueSend(s_robot_queue, &cmd, timeout) == pdTRUE;
+}
+
+// ===============================
+// Send command - QUEUE_FLUSH
+// ===============================
+void robot_cmd_queue_flush(void)
+{
+    if (s_robot_queue == NULL) return;
+
+    robot_cmd_t cmd = {0};
+    cmd.type = ROBOT_CMD_QUEUE_FLUSH;
+    (void)xQueueSend(s_robot_queue, &cmd, 0);
 }

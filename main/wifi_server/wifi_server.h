@@ -4,10 +4,7 @@
 
 #ifndef WIFI_SERVER
 #define WIFI_SERVER
-
-#define WIFI_SSID      "RoboControl"
-#define WIFI_PASS      "Robo-Control123"   
-#define MAX_STA_CONN   4 // max stable connections
+#include "config.h"   // Configuration
 
 typedef struct {
     char ssid[32];
@@ -40,7 +37,7 @@ typedef struct {
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "robot_io.h"  // Robot IO (servos, sensors)
-#include "core_config.h"   // Core Configuration
+#include "gcode.h"    // G-code interpreter
 
 
 // ===============================
